@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carry Trade Portfolio Comparison</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c14;
+    --surface: rgba(255,255,255,0.025);
+    --surface-hover: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.06);
+    --text: #c8cdd6;
+    --text-dim: #5a6270;
+    --text-bright: #eef0f4;
+    --accent: #d4a24e;
+    --red: #e05252;
+    --green: #3dba7a;
+    --orange: #e0953d;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'DM Sans', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 40px 24px 60px;
+  }
+
+  .container { max-width: 1120px; margin: 0 auto; }
+
+  .header-tag {
+    font-size: 10px; font-weight: 700; letter-spacing: 2.5px;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 10px;
+  }
+
+  h1 {
+    font-size: 30px; font-weight: 800; color: var(--text-bright);
+    line-height: 1.15; margin-bottom: 8px;
+  }
+
+  .subtitle { color: var(--text-dim); font-size: 14px; line-height: 1.6; max-width: 660px; }
+
+  /* Toggle buttons */
+  .toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 24px; }
+
+  .toggle-btn {
+    background: transparent; border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 7px 14px; cursor: pointer;
+    color: var(--text-dim); font-size: 12px; font-weight: 600;
+    font-family: var(--sans); display: flex; align-items: center; gap: 8px;
+    transition: all 0.25s;
+  }
+  .toggle-btn:hover { border-color: rgba(255,255,255,0.15); }
+  .toggle-btn.active { color: var(--text-bright); }
+  .toggle-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #333; transition: background 0.25s;
+  }
+  .toggle-btn.active .toggle-dot { box-shadow: 0 0 8px currentColor; }
+
+  /* Cards grid */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 28px; }
+
+  .card {
+    background: var(--surface); border-radius: 12px;
+    border: 1px solid var(--border); padding: 16px 20px;
+    opacity: 0; transform: translateY(12px);
+    animation: cardIn 0.4s ease forwards;
+  }
+  @keyframes cardIn { to { opacity: 1; transform: none; } }
+
+  .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .card-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .card-name { font-size: 14px; font-weight: 700; color: var(--text-bright); }
+  .card-desc { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.4; }
+  .card-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
+  .metric-label { font-size: 10px; color: var(--text-dim); font-weight: 500; letter-spacing: 0.3px; }
+  .metric-value { font-size: 15px; font-weight: 700; font-family: var(--mono); }
+
+  /* Chart panels */
+  .charts-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
+
+  .chart-panel {
+    background: var(--surface); border-radius: 14px;
+    border: 1px solid var(--border); padding: 20px;
+  }
+  .chart-panel.full { grid-column: 1 / -1; }
+  .chart-title { font-size: 14px; font-weight: 700; color: var(--text-bright); margin-bottom: 3px; }
+  .chart-sub { font-size: 11px; color: var(--text-dim); margin-bottom: 16px; }
+
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-wrap.bar-h { height: 340px; }
+  .chart-wrap.radar-h { height: 340px; }
+  .chart-wrap.scatter-h { height: 370px; }
+
+  /* Allocation bars */
+  .alloc-section {
+    background: var(--surface); border-radius: 14px;
+    border: 1px solid var(--border); padding: 20px 24px; margin-top: 16px;
+  }
+  .alloc-row { margin-bottom: 14px; }
+  .alloc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .alloc-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .alloc-sharpe { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+  .alloc-bar {
+    display: flex; height: 30px; border-radius: 6px; overflow: hidden;
+    background: rgba(255,255,255,0.02);
+  }
+  .alloc-seg {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff;
+    border-right: 1px solid rgba(0,0,0,0.3);
+    transition: flex 0.4s ease;
+  }
+  .alloc-seg:last-child { border-right: none; }
+
+  .footer {
+    text-align: center; font-size: 11px; color: var(--text-dim);
+    margin-top: 24px; padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header-tag">Section 8 · Mean-Variance Optimization</div>
+  <h1>Optimal Portfolio vs Alternatives</h1>
+  <p class="subtitle">Comparing the mean-variance optimized 70/27.4/2.6 JPY–MXN–CNY portfolio against JPY Only and the top hedge candidates from Sections 6–7.</p>
+
+  <div class="toggles" id="toggles"></div>
+  <div class="cards" id="cards"></div>
+
+  <div class="charts-grid">
+    <div class="chart-panel full">
+      <div class="chart-title">Performance Metrics</div>
+      <div class="chart-sub">Side-by-side comparison across key risk/return dimensions</div>
+      <div class="chart-wrap bar-h"><canvas id="barChart"></canvas></div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">Risk Profile Radar</div>
+      <div class="chart-sub">Normalized 0–100 across five dimensions</div>
+      <div class="chart-wrap radar-h"><canvas id="radarChart"></canvas></div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-title">Risk–Return Map</div>
+      <div class="chart-sub">Volatility vs return · dashed lines = Sharpe isolines</div>
+      <div class="chart-wrap scatter-h"><canvas id="scatterChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="alloc-section">
+    <div class="chart-title" style="margin-bottom:16px">Weight Allocation Breakdown</div>
+    <div id="allocBars"></div>
+  </div>
+
+  <div class="footer">Data from FRED · In-sample optimization · ~8 year lookback · All returns in USD terms</div>
+</div>
+
+<script>
+const PORTFOLIOS = [
+  { name:"JPY Only", weights:{JPY:100}, annRet:6.76, annVol:8.76, sharpe:0.772, maxDD:-14.09, skew:-0.52, color:"#e05252", desc:"100% JPY-funded carry trade" },
+  { name:"Optimal (MV)", weights:{JPY:70,"MXN rev":27.4,"CNY rev":2.6}, annRet:5.80, annVol:6.71, sharpe:0.864, maxDD:-10.95, skew:-0.50, color:"#d4a24e", desc:"70% JPY / 27.4% MXN rev / 2.6% CNY rev" },
+  { name:"JPY + CHF", weights:{JPY:50,CHF:50}, annRet:3.23, annVol:7.06, sharpe:0.458, maxDD:-10.97, skew:-0.54, color:"#3dba7a", desc:"50/50 JPY + CHF baseline" },
+  { name:"JPY + INR (fund)", weights:{JPY:50,"INR fund":50}, annRet:4.40, annVol:5.18, sharpe:0.850, maxDD:-8.32, skew:-0.36, color:"#e0953d", desc:"50/50 JPY + INR funding carry" },
+  { name:"JPY + KRW (fund)", weights:{JPY:50,"KRW fund":50}, annRet:5.51, annVol:6.62, sharpe:0.832, maxDD:-13.97, skew:-0.49, color:"#3ba1c9", desc:"50/50 JPY + KRW funding carry" },
+  { name:"JPY + CHF (rev)", weights:{JPY:50,"CHF rev":50}, annRet:3.79, annVol:3.79, sharpe:1.000, maxDD:-4.72, skew:-0.48, color:"#7c6dd8", desc:"50/50 JPY + CHF reverse carry" },
+];
+
+const ASSET_COLORS = { JPY:"#e05252", CHF:"#3dba7a", "MXN rev":"#3ba1c9", "CNY rev":"#9b6dd8", "INR fund":"#e0953d", "KRW fund":"#3ba1c9", "CHF rev":"#5a8fd4" };
+
+let active = new Set(PORTFOLIOS.map(p => p.name));
+let barChart, radarChart, scatterChart;
+
+function metricColor(metric, val) {
+  if (metric === "ret") return val >= 5 ? "#3dba7a" : "#e0953d";
+  if (metric === "vol") return val <= 6 ? "#3dba7a" : val <= 7 ? "#e0953d" : "#e05252";
+  if (metric === "sharpe") return val >= 0.85 ? "#3dba7a" : val >= 0.7 ? "#e0953d" : "#e05252";
+  if (metric === "dd") return val >= -8 ? "#3dba7a" : val >= -12 ? "#e0953d" : "#e05252";
+  return "#c8cdd6";
+}
+
+function renderToggles() {
+  const el = document.getElementById("toggles");
+  el.innerHTML = PORTFOLIOS.map(p => {
+    const on = active.has(p.name);
+    return `<button class="toggle-btn ${on ? 'active' : ''}" data-name="${p.name}" style="${on ? `border-color:${p.color};color:${p.color};background:${p.color}12` : ''}">
+      <span class="toggle-dot" style="background:${on ? p.color : '#333'}"></span>${p.name}</button>`;
+  }).join("");
+  el.querySelectorAll(".toggle-btn").forEach(btn => {
+    btn.onclick = () => {
+      const n = btn.dataset.name;
+      if (active.has(n)) { if (active.size > 1) active.delete(n); }
+      else active.add(n);
+      renderAll();
+    };
+  });
+}
+
+function renderCards() {
+  const el = document.getElementById("cards");
+  const arr = PORTFOLIOS.filter(p => active.has(p.name));
+  el.innerHTML = arr.map((p, i) => `
+    <div class="card" style="animation-delay:${i * 60}ms; border-color:${p.color}22">
+      <div class="card-head">
+        <span class="card-dot" style="background:${p.color}"></span>
+        <span class="card-name">${p.name}</span>
+      </div>
+      <div class="card-desc">${p.desc}</div>
+      <div class="card-metrics">
+        <div><div class="metric-label">Return</div><div class="metric-value" style="color:${metricColor('ret',p.annRet)}">${p.annRet}%</div></div>
+        <div><div class="metric-label">Vol</div><div class="metric-value" style="color:${metricColor('vol',p.annVol)}">${p.annVol}%</div></div>
+        <div><div class="metric-label">Sharpe</div><div class="metric-value" style="color:${metricColor('sharpe',p.sharpe)}">${p.sharpe.toFixed(3)}</div></div>
+        <div><div class="metric-label">Max DD</div><div class="metric-value" style="color:${metricColor('dd',p.maxDD)}">${p.maxDD}%</div></div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderAllocBars() {
+  const el = document.getElementById("allocBars");
+  const arr = PORTFOLIOS.filter(p => active.has(p.name));
+  el.innerHTML = arr.map(p => {
+    const segs = Object.entries(p.weights).map(([asset, w]) =>
+      `<div class="alloc-seg" style="flex:${w};background:${ASSET_COLORS[asset]||'#555'}">${w >= 10 ? `${asset} ${w}%` : `${w}%`}</div>`
+    ).join("");
+    return `<div class="alloc-row">
+      <div class="alloc-head">
+        <span class="card-dot" style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block"></span>
+        <span class="alloc-name">${p.name}</span>
+        <span class="alloc-sharpe">Sharpe ${p.sharpe.toFixed(3)}</span>
+      </div>
+      <div class="alloc-bar">${segs}</div>
+    </div>`;
+  }).join("");
+}
+
+function getActive() { return PORTFOLIOS.filter(p => active.has(p.name)); }
+
+function buildBarChart() {
+  const ctx = document.getElementById("barChart").getContext("2d");
+  const arr = getActive();
+  const labels = ["Ann. Return (%)", "Ann. Volatility (%)", "Sharpe Ratio", "|Max Drawdown| (%)"];
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: arr.map(p => ({
+        label: p.name, backgroundColor: p.color + "cc", borderColor: p.color,
+        borderWidth: 1, borderRadius: 4, data: [p.annRet, p.annVol, p.sharpe, Math.abs(p.maxDD)]
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#888", font: { family: "'DM Sans'", size: 11 } } },
+        tooltip: {
+          backgroundColor: "#151a26", borderColor: "rgba(255,255,255,0.1)", borderWidth: 1,
+          titleFont: { family: "'DM Sans'" }, bodyFont: { family: "'IBM Plex Mono'", size: 12 },
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(ctx.dataIndex === 2 ? 3 : 2)}${ctx.dataIndex === 2 ? '' : '%'}` }
+        }
+      },
+      scales: {
+        x: { ticks: { color: "#666", font: { family: "'DM Sans'", size: 11 } }, grid: { color: "rgba(255,255,255,0.04)" } },
+        y: { ticks: { color: "#666", font: { family: "'IBM Plex Mono'", size: 10 } }, grid: { color: "rgba(255,255,255,0.04)" } }
+      }
+    }
+  });
+}
+
+function buildRadarChart() {
+  const ctx = document.getElementById("radarChart").getContext("2d");
+  const arr = getActive();
+  const norm = (v, min, max) => ((v - min) / (max - min)) * 100;
+  const labels = ["Return", "Low Vol", "Sharpe", "Low Drawdown", "Skew"];
+  if (radarChart) radarChart.destroy();
+  radarChart = new Chart(ctx, {
+    type: "radar",
+    data: {
+      labels,
+      datasets: arr.map(p => ({
+        label: p.name, borderColor: p.color, backgroundColor: p.color + "14",
+        borderWidth: 2, pointRadius: 3, pointBackgroundColor: p.color,
+        data: [
+          norm(p.annRet, 0, 8),
+          norm(12 - p.annVol, 0, 12),
+          norm(p.sharpe, 0, 1.1),
+          norm(25 + p.maxDD, 0, 25),
+          norm((p.skew || -0.5) + 1, 0, 1.5)
+        ]
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#888", font: { family: "'DM Sans'", size: 11 } } },
+        tooltip: { backgroundColor: "#151a26", borderColor: "rgba(255,255,255,0.1)", borderWidth: 1 }
+      },
+      scales: {
+        r: {
+          beginAtZero: true, max: 100,
+          ticks: { display: false },
+          grid: { color: "rgba(255,255,255,0.06)" },
+          pointLabels: { color: "#999", font: { family: "'DM Sans'", size: 11 } },
+          angleLines: { color: "rgba(255,255,255,0.06)" }
+        }
+      }
+    }
+  });
+}
+
+function buildScatterChart() {
+  const ctx = document.getElementById("scatterChart").getContext("2d");
+  const arr = getActive();
+  if (scatterChart) scatterChart.destroy();
+
+  // Sharpe isoline plugin
+  const sharpeLines = {
+    id: "sharpeLines",
+    beforeDraw(chart) {
+      const { ctx: c, scales: { x, y } } = chart;
+      c.save();
+      [0.5, 0.75, 1.0].forEach(s => {
+        const x0 = x.getPixelForValue(0), y0 = y.getPixelForValue(0);
+        const x1 = x.getPixelForValue(12), y1 = y.getPixelForValue(s * 12);
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1);
+        c.strokeStyle = "rgba(255,255,255,0.07)"; c.setLineDash([5, 5]);
+        c.lineWidth = 1; c.stroke(); c.setLineDash([]);
+        c.fillStyle = "#444"; c.font = "10px 'DM Sans'";
+        c.fillText(`S=${s}`, x1 + 4, y1 + 4);
+      });
+      c.restore();
+    }
+  };
+
+  scatterChart = new Chart(ctx, {
+    type: "scatter",
+    plugins: [sharpeLines],
+    data: {
+      datasets: arr.map(p => ({
+        label: p.name, data: [{ x: p.annVol, y: p.annRet }],
+        backgroundColor: p.color, borderColor: p.color,
+        pointRadius: p.name === "Optimal (MV)" ? 10 : 7,
+        pointStyle: p.name === "Optimal (MV)" ? "star" : "circle",
+        pointBorderWidth: 2, pointBorderColor: p.name === "Optimal (MV)" ? "#fff" : p.color,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#888", font: { family: "'DM Sans'", size: 11 } } },
+        tooltip: {
+          backgroundColor: "#151a26", borderColor: "rgba(255,255,255,0.1)", borderWidth: 1,
+          bodyFont: { family: "'IBM Plex Mono'", size: 12 },
+          callbacks: {
+            label: ctx => {
+              const p = arr[ctx.datasetIndex];
+              return [` Vol: ${p.annVol}%`, ` Ret: ${p.annRet}%`, ` Sharpe: ${p.sharpe.toFixed(3)}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: "Annualized Volatility (%)", color: "#666", font: { family: "'DM Sans'", size: 11 } },
+          min: 2, max: 12,
+          ticks: { color: "#666", font: { family: "'IBM Plex Mono'", size: 10 }, callback: v => v + "%" },
+          grid: { color: "rgba(255,255,255,0.04)" }
+        },
+        y: {
+          title: { display: true, text: "Annualized Return (%)", color: "#666", font: { family: "'DM Sans'", size: 11 } },
+          min: 0, max: 8,
+          ticks: { color: "#666", font: { family: "'IBM Plex Mono'", size: 10 }, callback: v => v + "%" },
+          grid: { color: "rgba(255,255,255,0.04)" }
+        }
+      }
+    }
+  });
+}
+
+function renderAll() {
+  renderToggles();
+  renderCards();
+  renderAllocBars();
+  buildBarChart();
+  buildRadarChart();
+  buildScatterChart();
+}
+
+renderAll();
+</script>
+</body>
+</html>
