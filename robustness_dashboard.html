@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carry Trade Robustness Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060a10;
+  --surface: rgba(255,255,255,0.024);
+  --surface2: rgba(255,255,255,0.04);
+  --border: rgba(255,255,255,0.06);
+  --text: #b8bec8;
+  --dim: #4e5666;
+  --bright: #eef0f4;
+  --gold: #d4a24e;
+  --red: #e05252;
+  --green: #3dba7a;
+  --blue: #3b8fc9;
+  --purple: #7c6dd8;
+  --orange: #e0953d;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'DM Sans', -apple-system, sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--sans); padding:0; }
+.page { max-width:1200px; margin:0 auto; padding:48px 32px 80px; }
+
+/* Navigation */
+.nav { position:sticky; top:0; z-index:100; background:rgba(6,10,16,0.92); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border); padding:12px 32px; margin:0 -32px 40px; }
+.nav-inner { max-width:1200px; margin:0 auto; display:flex; gap:6px; flex-wrap:wrap; }
+.nav-btn { background:transparent; border:1px solid transparent; border-radius:6px; padding:6px 14px;
+  color:var(--dim); font-size:11px; font-weight:600; font-family:var(--sans); cursor:pointer;
+  transition:all 0.2s; letter-spacing:0.3px; }
+.nav-btn:hover { color:var(--text); border-color:var(--border); }
+.nav-btn.active { color:var(--gold); border-color:var(--gold); background:rgba(212,162,78,0.08); }
+
+/* Sections */
+.section { margin-bottom:56px; scroll-margin-top:60px; }
+.section-tag { font-size:10px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; margin-bottom:8px; }
+.section-title { font-size:26px; font-weight:800; color:var(--bright); line-height:1.2; margin-bottom:6px; }
+.section-desc { color:var(--dim); font-size:13.5px; line-height:1.6; max-width:700px; margin-bottom:24px; }
+
+/* Cards */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+@media(max-width:800px) { .grid-2,.grid-3 { grid-template-columns:1fr; } }
+
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.card-title { font-size:13px; font-weight:700; color:var(--bright); margin-bottom:4px; }
+.card-sub { font-size:11px; color:var(--dim); margin-bottom:14px; line-height:1.4; }
+
+/* Stats */
+.stat-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.03); }
+.stat-row:last-child { border:none; }
+.stat-label { font-size:12px; color:var(--dim); }
+.stat-val { font-size:13px; font-weight:600; font-family:var(--mono); }
+
+/* Big number */
+.big-num { font-size:32px; font-weight:800; font-family:var(--mono); line-height:1; }
+.big-label { font-size:11px; color:var(--dim); margin-top:4px; font-weight:500; }
+
+/* Verdict badges */
+.verdict { display:inline-block; padding:4px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.3px; }
+.verdict-good { background:rgba(61,186,122,0.12); color:var(--green); border:1px solid rgba(61,186,122,0.2); }
+.verdict-warn { background:rgba(224,149,61,0.12); color:var(--orange); border:1px solid rgba(224,149,61,0.2); }
+.verdict-bad { background:rgba(224,82,82,0.12); color:var(--red); border:1px solid rgba(224,82,82,0.2); }
+
+/* Table */
+.tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.tbl th { text-align:left; padding:8px 12px; color:var(--dim); font-weight:600; font-size:10px;
+  letter-spacing:0.5px; text-transform:uppercase; border-bottom:1px solid var(--border); }
+.tbl td { padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.02); font-family:var(--mono); font-size:12px; }
+.tbl tr:hover td { background:rgba(255,255,255,0.015); }
+.tbl .highlight { color:var(--gold); font-weight:600; }
+
+/* Chart containers */
+.chart-wrap { position:relative; width:100%; }
+.chart-wrap canvas { width:100%!important; }
+
+/* Callout */
+.callout { background:rgba(212,162,78,0.06); border:1px solid rgba(212,162,78,0.15);
+  border-left:3px solid var(--gold); border-radius:0 8px 8px 0; padding:14px 18px; margin:16px 0; }
+.callout-title { font-size:12px; font-weight:700; color:var(--gold); margin-bottom:4px; }
+.callout-text { font-size:12.5px; color:var(--text); line-height:1.5; }
+
+/* Compare bars */
+.compare-bar { display:flex; align-items:center; gap:12px; margin:8px 0; }
+.compare-label { width:90px; font-size:11px; color:var(--dim); text-align:right; flex-shrink:0; }
+.compare-track { flex:1; height:24px; background:rgba(255,255,255,0.03); border-radius:4px; position:relative; overflow:hidden; }
+.compare-fill { height:100%; border-radius:4px; display:flex; align-items:center; justify-content:flex-end; padding-right:8px;
+  font-size:10px; font-weight:700; color:#fff; transition:width 0.6s ease; }
+.compare-fill.optimal { background:linear-gradient(90deg, rgba(212,162,78,0.3), var(--gold)); }
+.compare-fill.jpy { background:linear-gradient(90deg, rgba(224,82,82,0.3), var(--red)); }
+
+footer { text-align:center; font-size:11px; color:var(--dim); padding:24px 0;
+  border-top:1px solid var(--border); margin-top:40px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- Navigation -->
+<nav class="nav">
+<div class="nav-inner">
+  <button class="nav-btn active" onclick="scrollTo('overview')">Overview</button>
+  <button class="nav-btn" onclick="scrollTo('walkforward')">Walk-Forward</button>
+  <button class="nav-btn" onclick="scrollTo('var')">VaR & CVaR</button>
+  <button class="nav-btn" onclick="scrollTo('montecarlo')">Monte Carlo</button>
+  <button class="nav-btn" onclick="scrollTo('drawdown')">Max Drawdown</button>
+  <button class="nav-btn" onclick="scrollTo('takeaways')">Takeaways</button>
+</div>
+</nav>
+
+<!-- ============ OVERVIEW ============ -->
+<div class="section" id="overview">
+  <div class="section-tag" style="color:var(--gold)">Robustness Analysis</div>
+  <div class="section-title">Carry Trade Portfolio: Stress Testing Results</div>
+  <div class="section-desc">Walk-forward validation, Value at Risk, and Monte Carlo simulation of the optimized 70% JPY / 27.4% MXN reverse / 2.6% CNY reverse carry trade portfolio versus a 100% JPY-funded baseline. Data sourced from FRED, ~8 year lookback.</div>
+
+  <div class="grid-3" style="margin-bottom:20px">
+    <div class="card" style="border-color:rgba(212,162,78,0.15)">
+      <div style="color:var(--gold)"><div class="big-num">0.737</div><div class="big-label">Walk-Forward Sharpe (OOS)</div></div>
+      <div style="margin-top:10px;font-size:11px;color:var(--dim)">vs 0.864 in-sample · vs 1.109 JPY Only (OOS)</div>
+    </div>
+    <div class="card" style="border-color:rgba(61,186,122,0.15)">
+      <div style="color:var(--green)"><div class="big-num">-20%</div><div class="big-label">Risk Reduction (95% VaR)</div></div>
+      <div style="margin-top:10px;font-size:11px;color:var(--dim)">Daily 95% VaR: 0.65% vs 0.82% for JPY Only</div>
+    </div>
+    <div class="card" style="border-color:rgba(59,143,201,0.15)">
+      <div style="color:var(--blue)"><div class="big-num">~20%</div><div class="big-label">P(Annual Loss)</div></div>
+      <div style="margin-top:10px;font-size:11px;color:var(--dim)">Consistent across all 3 Monte Carlo methods</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Key Finding</div>
+    <div class="callout-text">The MXN reverse carry hedge genuinely reduces risk — lower VaR, lower drawdowns, and lower loss probability — but the in-sample Sharpe of 0.864 was partially overfit. Out-of-sample performance is solid (0.737) though below JPY Only's exceptional 2021–2025 run. The hedge pays off most during stress periods.</div>
+  </div>
+</div>
+
+<!-- ============ WALK-FORWARD ============ -->
+<div class="section" id="walkforward">
+  <div class="section-tag" style="color:var(--orange)">Part 1</div>
+  <div class="section-title">Walk-Forward Optimization</div>
+  <div class="section-desc">Re-optimized every 6 months on a rolling 3-year training window. Tests whether the allocation holds up when the optimizer can't see the future.</div>
+
+  <div class="grid-3" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-title">Walk-Forward Optimal</div>
+      <div class="card-sub">Weights re-optimized out-of-sample</div>
+      <div class="stat-row"><span class="stat-label">Ann. Return</span><span class="stat-val" style="color:var(--orange)">4.47%</span></div>
+      <div class="stat-row"><span class="stat-label">Ann. Volatility</span><span class="stat-val">6.07%</span></div>
+      <div class="stat-row"><span class="stat-label">Sharpe Ratio</span><span class="stat-val" style="color:var(--orange)">0.737</span></div>
+      <div class="stat-row"><span class="stat-label">Max Drawdown</span><span class="stat-val">-11.70%</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Static Optimal (In-Sample)</div>
+      <div class="card-sub">Fixed 70/27.4/2.6 weights</div>
+      <div class="stat-row"><span class="stat-label">Ann. Return</span><span class="stat-val" style="color:var(--purple)">8.86%</span></div>
+      <div class="stat-row"><span class="stat-label">Ann. Volatility</span><span class="stat-val">7.13%</span></div>
+      <div class="stat-row"><span class="stat-label">Sharpe Ratio</span><span class="stat-val" style="color:var(--purple)">1.244</span></div>
+      <div class="stat-row"><span class="stat-label">Max Drawdown</span><span class="stat-val">-10.95%</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">JPY Only</div>
+      <div class="card-sub">100% JPY-funded carry</div>
+      <div class="stat-row"><span class="stat-label">Ann. Return</span><span class="stat-val" style="color:var(--red)">10.98%</span></div>
+      <div class="stat-row"><span class="stat-label">Ann. Volatility</span><span class="stat-val">9.91%</span></div>
+      <div class="stat-row"><span class="stat-label">Sharpe Ratio</span><span class="stat-val" style="color:var(--red)">1.109</span></div>
+      <div class="stat-row"><span class="stat-label">Max Drawdown</span><span class="stat-val">-14.09%</span></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Weight Stability</div>
+    <div class="card-sub">How much did the optimizer shift weights across the 10 re-optimization periods?</div>
+    <div class="grid-3">
+      <div>
+        <div class="compare-bar"><span class="compare-label">JPY</span>
+          <div class="compare-track"><div class="compare-fill optimal" style="width:67%">40.4% – 73.7%</div></div></div>
+        <div style="text-align:center;font-size:11px;color:var(--dim)">Mean: 53.2% · Std: 10.7%</div>
+      </div>
+      <div>
+        <div class="compare-bar"><span class="compare-label">MXN rev</span>
+          <div class="compare-track"><div class="compare-fill" style="width:56%;background:linear-gradient(90deg,rgba(59,161,201,0.3),var(--blue))">0.3% – 45.1%</div></div></div>
+        <div style="text-align:center;font-size:11px;color:var(--dim)">Mean: 21.4% · Std: 17.6%</div>
+      </div>
+      <div>
+        <div class="compare-bar"><span class="compare-label">CNY rev</span>
+          <div class="compare-track"><div class="compare-fill" style="width:63%;background:linear-gradient(90deg,rgba(124,109,216,0.3),var(--purple))">0.0% – 50.0%</div></div></div>
+        <div style="text-align:center;font-size:11px;color:var(--dim)">Mean: 25.4% · Std: 25.3%</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:14px">
+      <div class="callout-title">Interpretation</div>
+      <div class="callout-text">Weights are <strong>not stable</strong> — JPY ranges 30pp, MXN 45pp, CNY the full 0–50% range. This means the 70/30 split from in-sample optimization shouldn't be treated as a fixed allocation. The optimal hedge ratio varies meaningfully with market conditions. A simpler approach like fixed 60/40 JPY/MXN might be more robust.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ VaR ============ -->
+<div class="section" id="var">
+  <div class="section-tag" style="color:var(--red)">Part 2</div>
+  <div class="section-title">Value at Risk & CVaR</div>
+  <div class="section-desc">VaR answers "what's the most I'd lose on a bad day?" CVaR answers "when it's worse than VaR, how bad does it get on average?" Both matter more than volatility for carry trades due to negative skew.</div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Daily VaR Comparison</div>
+    <div class="card-sub">Historical method · Negative skew means Gaussian VaR underestimates risk</div>
+    <table class="tbl">
+      <tr><th>Confidence</th><th>Metric</th><th>Optimal</th><th>JPY Only</th><th>Reduction</th></tr>
+      <tr><td>95%</td><td>VaR</td><td class="highlight">0.652%</td><td>0.823%</td><td style="color:var(--green)">-21%</td></tr>
+      <tr><td>95%</td><td>CVaR</td><td class="highlight">1.055%</td><td>1.329%</td><td style="color:var(--green)">-21%</td></tr>
+      <tr><td>99%</td><td>VaR</td><td class="highlight">1.295%</td><td>1.692%</td><td style="color:var(--green)">-23%</td></tr>
+      <tr><td>99%</td><td>CVaR</td><td class="highlight">1.728%</td><td>2.308%</td><td style="color:var(--green)">-25%</td></tr>
+    </table>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Dollar VaR/CVaR — $100,000 Portfolio (95% Historical)</div>
+    <div class="card-sub">Concrete dollar loss estimates at different holding periods</div>
+    <table class="tbl">
+      <tr><th>Horizon</th><th colspan="2" style="text-align:center">Optimal Portfolio</th><th colspan="2" style="text-align:center">JPY Only</th></tr>
+      <tr><th></th><th>VaR</th><th>CVaR</th><th>VaR</th><th>CVaR</th></tr>
+      <tr><td>1 Day</td><td class="highlight">$652</td><td>$1,055</td><td>$823</td><td>$1,329</td></tr>
+      <tr><td>1 Week</td><td class="highlight">$1,440</td><td>$2,204</td><td>$1,935</td><td>$2,782</td></tr>
+      <tr><td>1 Month</td><td class="highlight">$2,770</td><td>$4,535</td><td>$3,632</td><td>$5,287</td></tr>
+      <tr><td>3 Months</td><td class="highlight">$5,854</td><td>$7,338</td><td>$5,247</td><td>$8,392</td></tr>
+    </table>
+    <div class="callout" style="margin-top:14px">
+      <div class="callout-title">Why Cornish-Fisher matters</div>
+      <div class="callout-text">The optimal portfolio has skewness of -0.737 and excess kurtosis of 4.80. The Gaussian model estimates 99% VaR at 0.96%, but Cornish-Fisher (which adjusts for these fat tails) estimates 1.57% — <strong>64% higher</strong>. For carry trades, always use tail-aware risk measures.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Return Distribution Properties</div>
+    <div class="grid-2">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:8px">Optimal Portfolio</div>
+        <div class="stat-row"><span class="stat-label">Daily Mean</span><span class="stat-val">0.023%</span></div>
+        <div class="stat-row"><span class="stat-label">Daily Std</span><span class="stat-val">0.422%</span></div>
+        <div class="stat-row"><span class="stat-label">Skewness</span><span class="stat-val" style="color:var(--orange)">-0.737</span></div>
+        <div class="stat-row"><span class="stat-label">Excess Kurtosis</span><span class="stat-val" style="color:var(--red)">4.80</span></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px">JPY Only</div>
+        <div class="stat-row"><span class="stat-label">Daily Mean</span><span class="stat-val">0.028%</span></div>
+        <div class="stat-row"><span class="stat-label">Daily Std</span><span class="stat-val">0.551%</span></div>
+        <div class="stat-row"><span class="stat-label">Skewness</span><span class="stat-val" style="color:var(--orange)">-0.523</span></div>
+        <div class="stat-row"><span class="stat-label">Excess Kurtosis</span><span class="stat-val" style="color:var(--red)">5.16</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MONTE CARLO ============ -->
+<div class="section" id="montecarlo">
+  <div class="section-tag" style="color:var(--blue)">Part 3</div>
+  <div class="section-title">Monte Carlo Simulation</div>
+  <div class="section-desc">10,000 simulated 1-year paths using three methods: parametric normal, block bootstrap (preserves real-world dependence), and regime-switching (captures calm/crisis dynamics).</div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">1-Year Terminal Return Distribution</div>
+    <div class="card-sub">All three methods for the optimal portfolio</div>
+    <table class="tbl">
+      <tr><th>Metric</th><th>Parametric</th><th>Bootstrap</th><th>Regime-SW</th></tr>
+      <tr><td>Mean return</td><td>6.06%</td><td>6.06%</td><td>5.95%</td></tr>
+      <tr><td>Median return</td><td>5.83%</td><td>6.09%</td><td>5.72%</td></tr>
+      <tr><td>Std deviation</td><td>6.99%</td><td>7.19%</td><td>7.07%</td></tr>
+      <tr><td>Skewness</td><td style="color:var(--green)">0.177</td><td style="color:var(--dim)">-0.012</td><td style="color:var(--green)">0.218</td></tr>
+      <tr><td>P(loss)</td><td class="highlight">19.3%</td><td class="highlight">19.8%</td><td class="highlight">19.8%</td></tr>
+      <tr><td>P(loss > 10%)</td><td>0.69%</td><td style="color:var(--orange)">1.44%</td><td>0.93%</td></tr>
+      <tr><td>95% VaR</td><td>5.18%</td><td style="color:var(--orange)">5.68%</td><td>5.30%</td></tr>
+      <tr><td>99% VaR</td><td>9.29%</td><td style="color:var(--red)">10.74%</td><td>9.85%</td></tr>
+      <tr><td>95% CVaR</td><td>7.73%</td><td style="color:var(--red)">8.91%</td><td>8.05%</td></tr>
+      <tr><td>99% CVaR</td><td>11.25%</td><td style="color:var(--red)">13.41%</td><td>11.91%</td></tr>
+      <tr><td>Worst case</td><td>-18.02%</td><td style="color:var(--red)">-19.91%</td><td>-20.50%</td></tr>
+    </table>
+    <div class="callout" style="margin-top:14px">
+      <div class="callout-title">Bootstrap vs Parametric</div>
+      <div class="callout-text">The bootstrap produces wider tails — 99% VaR is 10.74% vs 9.29% parametric. This confirms that a Gaussian assumption underestimates carry trade tail risk by ~15%. The bootstrap is the most realistic model since it preserves actual historical dependence structures.</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Optimal Portfolio vs JPY Only (Block Bootstrap)</div>
+    <div class="card-sub">Side-by-side comparison across 10,000 simulations</div>
+    <table class="tbl">
+      <tr><th>Metric</th><th>Optimal</th><th>JPY Only</th><th>Difference</th></tr>
+      <tr><td>Mean return</td><td>6.06%</td><td>6.93%</td><td style="color:var(--orange)">-0.87%</td></tr>
+      <tr><td>Std deviation</td><td>7.19%</td><td>9.10%</td><td style="color:var(--green)">-1.91%</td></tr>
+      <tr><td>P(loss)</td><td class="highlight">19.77%</td><td>22.58%</td><td style="color:var(--green)">-2.81%</td></tr>
+      <tr><td>95% VaR</td><td class="highlight">5.68%</td><td>7.51%</td><td style="color:var(--green)">-1.83%</td></tr>
+      <tr><td>99% VaR</td><td class="highlight">10.74%</td><td>13.00%</td><td style="color:var(--green)">-2.26%</td></tr>
+      <tr><td>95% CVaR</td><td class="highlight">8.91%</td><td>11.03%</td><td style="color:var(--green)">-2.12%</td></tr>
+    </table>
+    <div class="callout" style="margin-top:14px">
+      <div class="callout-title">The Tradeoff</div>
+      <div class="callout-text">You give up ~0.87% annual return in exchange for: 1.91% lower volatility, 2.81% lower probability of annual loss, and 1.83–2.26% lower VaR across confidence levels. The risk reduction is consistent and meaningful — the return sacrifice is modest.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRAWDOWN ============ -->
+<div class="section" id="drawdown">
+  <div class="section-tag" style="color:var(--purple)">Part 4</div>
+  <div class="section-title">Maximum Drawdown & Loss Exceedance</div>
+  <div class="section-desc">Confidence intervals on the worst peak-to-trough loss you'd experience over a 1-year horizon, derived from 10,000 bootstrap simulations.</div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Max Drawdown Confidence Intervals (1-Year)</div>
+    <div class="card-sub">At each percentile, the drawdown will be no worse than this value with that probability</div>
+
+    <div style="margin:16px 0">
+      <div class="compare-bar"><span class="compare-label" style="width:110px">50th pctile</span>
+        <div class="compare-track"><div class="compare-fill optimal" style="width:33%">-4.98%</div></div>
+        <div class="compare-track"><div class="compare-fill jpy" style="width:46%">-6.95%</div></div></div>
+      <div class="compare-bar"><span class="compare-label" style="width:110px">75th pctile</span>
+        <div class="compare-track"><div class="compare-fill optimal" style="width:24%">-3.63%</div></div>
+        <div class="compare-track"><div class="compare-fill jpy" style="width:34%">-5.08%</div></div></div>
+      <div class="compare-bar"><span class="compare-label" style="width:110px">90th pctile</span>
+        <div class="compare-track"><div class="compare-fill optimal" style="width:19%">-2.93%</div></div>
+        <div class="compare-track"><div class="compare-fill jpy" style="width:26%">-3.94%</div></div></div>
+      <div class="compare-bar"><span class="compare-label" style="width:110px">95th pctile</span>
+        <div class="compare-track"><div class="compare-fill optimal" style="width:17%">-2.51%</div></div>
+        <div class="compare-track"><div class="compare-fill jpy" style="width:22%">-3.34%</div></div></div>
+      <div class="compare-bar"><span class="compare-label" style="width:110px">99th pctile</span>
+        <div class="compare-track"><div class="compare-fill optimal" style="width:13%">-1.96%</div></div>
+        <div class="compare-track"><div class="compare-fill jpy" style="width:17%">-2.53%</div></div></div>
+    </div>
+    <div style="display:flex;gap:16px;justify-content:center;font-size:11px;color:var(--dim);margin-top:8px">
+      <span><span style="display:inline-block;width:12px;height:12px;background:var(--gold);border-radius:2px;vertical-align:middle;margin-right:4px"></span>Optimal</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:var(--red);border-radius:2px;vertical-align:middle;margin-right:4px"></span>JPY Only</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Loss Exceedance Probabilities (1-Year)</div>
+    <div class="card-sub">Probability of losing more than X% over a 1-year holding period</div>
+    <table class="tbl">
+      <tr><th>Loss Exceeds</th><th>Optimal (Bootstrap)</th><th>Optimal (Regime-SW)</th><th>JPY Only</th></tr>
+      <tr><td>5%</td><td class="highlight">5.99%</td><td>5.38%</td><td>8.96%</td></tr>
+      <tr><td>10%</td><td class="highlight">1.44%</td><td>0.93%</td><td>2.53%</td></tr>
+      <tr><td>15%</td><td class="highlight">0.24%</td><td>0.07%</td><td>0.55%</td></tr>
+      <tr><td>20%</td><td>0.00%</td><td>0.01%</td><td>0.10%</td></tr>
+      <tr><td>25%</td><td>0.00%</td><td>0.00%</td><td>0.02%</td></tr>
+    </table>
+    <div class="callout" style="margin-top:14px">
+      <div class="callout-title">Read it this way</div>
+      <div class="callout-text">With JPY Only, there's roughly a 1-in-40 chance of losing 10%+ in a year. With the optimal portfolio, it's about 1-in-70 (bootstrap) to 1-in-108 (regime-switching). The probability of a 15%+ loss drops from 0.55% to 0.24% — less than half. Catastrophic losses (>20%) are essentially eliminated with the hedge.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TAKEAWAYS ============ -->
+<div class="section" id="takeaways">
+  <div class="section-tag" style="color:var(--green)">Conclusions</div>
+  <div class="section-title">Key Takeaways</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="color:var(--green)">What works</div>
+      <div style="font-size:12.5px;line-height:1.6;margin-top:8px">
+        <p style="margin-bottom:8px"><strong>Risk reduction is genuine.</strong> Every test — historical, parametric, bootstrap, regime-switching — shows the hedged portfolio has lower VaR, CVaR, drawdowns, and loss probability than JPY Only.</p>
+        <p style="margin-bottom:8px"><strong>The cost is modest.</strong> You sacrifice roughly 0.9% annual return for 20–25% lower tail risk metrics. For most risk-adjusted frameworks, this is a favorable tradeoff.</p>
+        <p><strong>MXN reverse carry provides real diversification.</strong> It's not just adding noise — it has structurally different risk factors (oil, US nearshoring, LatAm monetary policy) from JPY carry.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:var(--orange)">What to watch</div>
+      <div style="font-size:12.5px;line-height:1.6;margin-top:8px">
+        <p style="margin-bottom:8px"><strong>The in-sample Sharpe was overfit.</strong> 0.864 in-sample drops to 0.737 out-of-sample — a 15% haircut. Always discount optimized backtests.</p>
+        <p style="margin-bottom:8px"><strong>Optimal weights are unstable.</strong> JPY weight ranged 40–74%, MXN 0–45% across re-optimization periods. A fixed allocation is simpler and potentially more robust.</p>
+        <p><strong>JPY Only dominated 2021–2025.</strong> The hedge underperformed during the BOJ/Fed divergence era. In strong trending carry environments, the hedge is a drag.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="card-title">Gaussian vs Reality</div>
+    <div class="card-sub">Why standard risk models underestimate carry trade risk</div>
+    <div style="height:260px"><canvas id="gaussianChart"></canvas></div>
+  </div>
+</div>
+
+<footer>Carry Trade Robustness Analysis · Data from FRED (St. Louis Fed) · ~8 year lookback · All returns USD · March 2026</footer>
+</div>
+
+<script>
+// Navigation
+function scrollTo(id) {
+  document.getElementById(id).scrollIntoView({behavior:'smooth'});
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+// Auto-highlight nav on scroll
+const sections = ['overview','walkforward','var','montecarlo','drawdown','takeaways'];
+window.addEventListener('scroll', () => {
+  const y = window.scrollY + 80;
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const el = document.getElementById(sections[i]);
+    if (el && el.offsetTop <= y) {
+      document.querySelectorAll('.nav-btn').forEach((b,j) => b.classList.toggle('active', j === i));
+      break;
+    }
+  }
+});
+
+// Gaussian vs Reality chart
+const ctx = document.getElementById('gaussianChart').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ['95% VaR', '99% VaR', '95% CVaR', '99% CVaR'],
+    datasets: [
+      { label: 'Parametric (Gaussian)', data: [5.18, 9.29, 7.73, 11.25], backgroundColor: '#3b8fc966', borderColor: '#3b8fc9', borderWidth: 1.5, borderRadius: 4 },
+      { label: 'Bootstrap (Reality)', data: [5.68, 10.74, 8.91, 13.41], backgroundColor: '#d4a24e66', borderColor: '#d4a24e', borderWidth: 1.5, borderRadius: 4 },
+      { label: 'Regime-Switching', data: [5.30, 9.85, 8.05, 11.91], backgroundColor: '#7c6dd866', borderColor: '#7c6dd8', borderWidth: 1.5, borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#888', font: { family: "'DM Sans'", size: 11 } } },
+      tooltip: { backgroundColor: '#151a26', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+        bodyFont: { family: "'IBM Plex Mono'", size: 12 },
+        callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(2)}%` } }
+    },
+    scales: {
+      x: { ticks: { color: '#666', font: { family: "'DM Sans'", size: 11 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+      y: { ticks: { color: '#666', font: { family: "'IBM Plex Mono'", size: 10 }, callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.03)' } }
+    }
+  }
+});
+</script>
+</body>
+</html>
